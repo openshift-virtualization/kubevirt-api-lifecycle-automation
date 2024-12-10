@@ -1,0 +1,9 @@
+.idea/
+kubevirt_api_lifecycle_automation
+tmp
+_ci-configs/*
+0
+bin/
+_out/*
+manifests/generated/*
+.coverprofile

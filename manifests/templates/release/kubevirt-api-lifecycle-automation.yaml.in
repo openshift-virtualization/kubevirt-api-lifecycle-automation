@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubevirt-api-lifecycle-automation.io: ""
+  name: {{.Namespace}}
+{{index .GeneratedManifests "operator-everything.yaml.in"}}
