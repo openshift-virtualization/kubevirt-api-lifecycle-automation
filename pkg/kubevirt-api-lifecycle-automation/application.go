@@ -117,11 +117,13 @@ func (c *MachineTypeUpdater) Run() {
 	for _, ns := range namespaces {
 		vmList, err := c.virtClient.KubevirtClient().KubevirtV1().VirtualMachines(c.namespace).List(context.Background(), metav1.ListOptions{LabelSelector: c.labelSelector.String()})
 		if err != nil {
-			log.Log.Reason(err).Errorf("Error getting vm list from namespace %v", ns)
+			log.Log.Reason(err).Errorf("Error getting vm list from namespace: %s", ns)
 			continue
 		}
 		for _, vm := range vmList.Items {
-			c.execute(&vm)
+			if err := c.execute(&vm); err != nil {
+				log.Log.Reason(err).Object(&vm).Error("Error executing vm")
+			}
 		}
 	}
 }
@@ -172,14 +174,9 @@ func (c *MachineTypeUpdater) execute(vm *virtv1.VirtualMachine) error {
 func (c *MachineTypeUpdater) patchMachineType(vm *virtv1.VirtualMachine) error {
 	// removing the machine type field from the VM spec reverts it to
 	// the default machine type of the VM's arch
-	patches := []patch.PatchOperation{
-		{
-			Op:   patch.PatchRemoveOp,
-			Path: "/spec/template/spec/domain/machine",
-		},
-	}
+	const MachineTypePath = "/spec/template/spec/domain/machine/type"
 
-	payload, err := patch.GeneratePatchPayload(patches...)
+	payload, err := patch.New(patch.WithRemove(MachineTypePath)).GeneratePayload()
 	if err != nil {
 		return fmt.Errorf("failed to generate patch payload: %v", err)
 	}
