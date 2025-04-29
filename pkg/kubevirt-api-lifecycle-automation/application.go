@@ -110,14 +110,14 @@ func (c *MachineTypeUpdater) Run() {
 
 	namespaces, err := c.getNamespaces()
 	if err != nil {
-		log.Log.Errorf("Error while listing namespaces: %v", err)
+		log.Log.Reason(err).Error("Error while listing namespaces")
 		os.Exit(1)
 	}
 
 	for _, ns := range namespaces {
 		vmList, err := c.virtClient.KubevirtClient().KubevirtV1().VirtualMachines(c.namespace).List(context.Background(), metav1.ListOptions{LabelSelector: c.labelSelector.String()})
 		if err != nil {
-			log.Log.Errorf("Error getting vm list: %s from namespace: %v", err.Error(), ns)
+			log.Log.Reason(err).Errorf("Error getting vm list from namespace %v", ns)
 			continue
 		}
 		for _, vm := range vmList.Items {
@@ -140,15 +140,19 @@ func (c *MachineTypeUpdater) execute(vm *virtv1.VirtualMachine) error {
 		return nil
 	}
 
+	log.Log.Object(vm).Info("Updating machine type for vm")
+
 	err = c.patchMachineType(vm)
 	if err != nil {
-		log.Log.Errorf("Error patching vm %s/%s: %v\nSkipping...", vm.Namespace, vm.Name, err)
+		log.Log.Reason(err).Object(vm).Error("Error patching vm \nSkipping...")
 		return nil
 	}
 
+	log.Log.Object(vm).Info("Patched machine type for vm successfully")
+
 	runStrategy, err := vm.RunStrategy()
 	if err != nil {
-		log.Log.Errorf("Error getting RunStrategy from vm %s/%s: %v\nSkipping...", vm.Namespace, vm.Name, err)
+		log.Log.Reason(err).Object(vm).Error("Error getting RunStrategy from vm \nSkipping...")
 		return nil
 	}
 
@@ -157,9 +161,11 @@ func (c *MachineTypeUpdater) execute(vm *virtv1.VirtualMachine) error {
 	}
 
 	if runStrategy == virtv1.RunStrategyOnce {
+		log.Log.Object(vm).Info("Stopping vm due to RunStrategyOnce after machine type patch")
 		return c.virtClient.KubevirtClient().KubevirtV1().VirtualMachines(vm.Namespace).Stop(context.Background(), vm.Name, &virtv1.StopOptions{})
 	}
 
+	log.Log.Object(vm).Info("Restarting VM to apply new machine type")
 	return c.virtClient.KubevirtClient().KubevirtV1().VirtualMachines(vm.Namespace).Restart(context.Background(), vm.Name, &virtv1.RestartOptions{})
 }
 
